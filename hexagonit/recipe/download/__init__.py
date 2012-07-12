@@ -128,7 +128,11 @@ class Recipe(object):
                     dest = os.path.join(destination, filename)
                     if os.path.exists(dest):
                         if ignore_existing:
-                            log.info('Ignoring existing target: %s' % dest)
+                            log.info('Ignoring existing target and erasing it: %s' % dest)
+                            if os.path.isdir(dest):
+                                shutil.rmtree(dest)
+                            else:
+                                os.remove(dest)
                         else:
                             log.error('Target %s already exists. Either remove it or set '
                                       '``ignore-existing = true`` in your buildout.cfg to ignore existing '
