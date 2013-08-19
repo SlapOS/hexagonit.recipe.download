@@ -45,6 +45,27 @@ class Recipe(object):
         self.verbose = int(buildout['buildout'].get('verbosity', 0)) >= 20
         self.excludes = [x.strip() for x in options.get('excludes', '').strip().splitlines() if x.strip()]
 
+        # PATCH BEGIN
+        self.environ = {}
+        self.original_environment = os.environ.copy()
+
+        environment_section = self.options.get('environment-section', '').strip()
+        if environment_section and environment_section in buildout:
+            # Use environment variables from the designated config section.
+            self.environ.update(buildout[environment_section])
+        for variable in self.options.get('environment', '').splitlines():
+            if variable.strip():
+                try:
+                    key, value = variable.split('=', 1)
+                    self.environ[key.strip()] = value
+                except ValueError:
+                    raise zc.buildout.UserError('Invalid environment variable definition: %s', variable)
+        # Extrapolate the environment variables using values from the current
+        # environment.
+        for key in self.environ:
+            self.environ[key] = self.environ[key] % os.environ
+        # PATCH END
+
     def progress_filter(self, src, dst):
         """Filter out contents from the extracted package."""
         log = logging.getLogger(self.name)
@@ -116,7 +137,17 @@ class Recipe(object):
                 self.excluded_count = 0
                 try:
                     try:
-                        setuptools.archive_util.unpack_archive(path, extract_dir, progress_filter=self.progress_filter)
+                        # PATCH BEGIN
+                        # ad-hoc support for .xz archive
+                        import subprocess
+                        if file(path).read(6) == '\xfd7zXZ\x00':
+                            new_path = os.path.join(extract_dir, os.path.basename(path))
+                            subprocess.check_call('xzcat %s > %s' % (path, new_path), shell=True, env=self.environ)
+                            setuptools.archive_util.unpack_archive(new_path, extract_dir, progress_filter=self.progress_filter)
+                            os.unlink(new_path)
+                        else:
+                            setuptools.archive_util.unpack_archive(path, extract_dir, progress_filter=self.progress_filter)
+                        # PATCH END
                     except setuptools.archive_util.UnrecognizedFormat:
                         log.error('Unable to extract the package %s. Unknown format.', path)
                         raise zc.buildout.UserError('Package extraction error')

@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 import os
 
-version = '1.7'
+version = '1.7nxd002'
 name = 'hexagonit.recipe.download'
 
 
